@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tirages Montres</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --ok:#16a34a; --warn:#f59e0b; --bad:#ef4444; }
+    body{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
+    .ring-focus:focus{outline:none;box-shadow:0 0 0 3px rgba(59,130,246,.4)}
+    /* Circular score gauge using conic-gradient */
+    .gauge{ --p:0; width:44px;height:44px;border-radius:50%;display:inline-grid;place-items:center; background:
+      conic-gradient(currentColor calc(var(--p)*1%),#e5e7eb 0); color:var(--ok)}
+    .gauge span{font-size:11px;font-weight:700}
+    .badge{border-radius:9999px;padding:.125rem .5rem;font-size:.75rem;font-weight:600}
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <!-- Header -->
+  <header class="sticky top-0 z-10 backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white/90 border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <h1 class="text-2xl font-bold">Tirages Montres</h1>
+      <div class="flex gap-2">
+        <button id="btnAdd" class="ring-focus inline-flex items-center gap-2 rounded-xl bg-slate-900 text-white px-3 py-2 text-sm font-semibold">Ajouter un tirage</button>
+        <button id="btnReset" class="ring-focus inline-flex items-center gap-2 rounded-xl bg-white border border-slate-300 px-3 py-2 text-sm">Réinitialiser les données</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Controls -->
+  <section class="max-w-6xl mx-auto px-4 mt-6">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <label class="block">
+        <span class="block text-sm font-medium mb-1">Recherche</span>
+        <input id="q" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2" placeholder="modèle, n° tirage, source" />
+      </label>
+      <label class="block">
+        <span class="block text-sm font-medium mb-1">Probabilité min (%)</span>
+        <input id="minProb" type="number" step="0.01" min="0" value="0" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+      </label>
+      <label class="block">
+        <span class="block text-sm font-medium mb-1">Prix du ticket max (GBP)</span>
+        <input id="maxPrice" type="number" step="1" min="0" placeholder="illimité" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+      </label>
+      <label class="block">
+        <span class="block text-sm font-medium mb-1">Valeur montre min (GBP)</span>
+        <input id="minValue" type="number" step="100" min="0" value="0" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+      </label>
+    </div>
+    <div class="mt-3 text-sm text-slate-600">Astuce: la <span class="font-semibold">note /100</span> = probabilité de gain pour 1 ticket × 100. Vert ≥ 1%, Orange 0,2–1%, Rouge &lt; 0,2%.</div>
+  </section>
+
+  <!-- Table -->
+  <main class="max-w-6xl mx-auto px-4 mt-4 mb-16">
+    <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50 text-slate-700 border-b border-slate-200 select-none">
+          <tr>
+            <th class="px-4 py-3 text-left cursor-pointer" data-sort="numero">N° Tirage</th>
+            <th class="px-4 py-3 text-left">Modèle</th>
+            <th class="px-4 py-3 text-left">Valeur (GBP)</th>
+            <th class="px-4 py-3 text-left">Tickets</th>
+            <th class="px-4 py-3 text-left">Prix ticket (GBP)</th>
+            <th class="px-4 py-3 text-left">Score (/100)</th>
+            <th class="px-4 py-3 text-left">Source</th>
+            <th class="px-4 py-3 text-left cursor-pointer" data-sort="date">Date du tirage</th>
+            <th class="px-4 py-3 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rows" class="divide-y divide-slate-100"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Modal -->
+  <div id="modal" class="fixed inset-0 hidden items-center justify-center p-4 bg-black/40">
+    <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl">
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+        <h2 id="modalTitle" class="text-lg font-semibold">Ajouter un tirage</h2>
+        <button id="btnClose" class="ring-focus rounded-lg px-2 py-1 text-slate-500 hover:bg-slate-100">✕</button>
+      </div>
+      <form id="form" class="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <label class="block">
+          <span class="block text-sm font-medium">N° Tirage</span>
+          <input name="numero" required type="number" min="1" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+        </label>
+        <label class="block md:col-span-1">
+          <span class="block text-sm font-medium">Modèle</span>
+          <input name="modele" required maxlength="120" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+        </label>
+        <label class="block">
+          <span class="block text-sm font-medium">Valeur de la montre (GBP)</span>
+          <input name="valeur" required type="number" step="1" min="1" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+        </label>
+        <label class="block">
+          <span class="block text-sm font-medium">Nombre de tickets</span>
+          <input name="tickets" required type="number" step="1" min="1" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+        </label>
+        <label class="block">
+          <span class="block text-sm font-medium">Prix du ticket (GBP)</span>
+          <input name="prix" required type="number" step="1" min="1" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+        </label>
+        <label class="block md:col-span-1">
+          <span class="block text-sm font-medium">Source (URL)</span>
+          <input name="source" type="url" placeholder="https://…" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+        </label>
+        <label class="block md:col-span-1">
+          <span class="block text-sm font-medium">Date du tirage</span>
+          <input name="date" required type="date" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+        </label>
+        <div class="md:col-span-2 flex items-center justify-end gap-2 pt-2">
+          <button type="button" id="btnCancel" class="ring-focus rounded-xl border border-slate-300 px-4 py-2">Annuler</button>
+          <button type="submit" class="ring-focus rounded-xl bg-slate-900 text-white px-4 py-2 font-semibold">Enregistrer</button>
+        </div>
+        <input type="hidden" name="id" />
+      </form>
+    </div>
+  </div>
+
+  <footer class="max-w-6xl mx-auto px-4 pb-10 text-xs text-slate-500">
+    Données stockées localement. Probabilité calculée pour <span class="font-semibold">1 ticket</span>.
+  </footer>
+
+  <!-- Optional: panneau de tests -->
+  <section class="max-w-6xl mx-auto px-4 pb-8">
+    <details id="tests" class="mt-4 bg-white border border-slate-200 rounded-2xl p-4 text-sm">
+      <summary class="cursor-pointer select-none font-semibold">Tests unitaires intégrés</summary>
+      <ul id="testList" class="mt-2 list-disc pl-6 text-slate-700"></ul>
+    </details>
+  </section>
+
+  <script>
+  'use strict';
+  // ===== Utilities =====
+  const fmtGBP = (n) => new Intl.NumberFormat('fr-FR',{style:'currency',currency:'GBP',maximumFractionDigits:0}).format(n);
+  const fmtInt = (n) => new Intl.NumberFormat('fr-FR').format(n);
+  const fmtDate = (iso) => new Date(iso+'T00:00:00').toLocaleDateString('fr-FR');
+  const byNumero = (a,b)=> a.numero-b.numero;
+  const byDate   = (a,b)=> new Date(a.date) - new Date(b.date);
+  const prob = (tickets)=> tickets>0? 1/tickets:0; // for 1 ticket
+  const score100 = (tickets)=> +(prob(tickets)*100).toFixed(2);
+  const colorFor = (p)=> p>=1? 'var(--ok)': (p>=0.2? 'var(--warn)':'var(--bad)');
+  const uid = ()=> (typeof crypto!=='undefined' && crypto.randomUUID)? crypto.randomUUID() : ('id-'+Math.random().toString(36).slice(2)+Date.now());
+
+  // ===== State =====
+  const LS_KEY = 'tirages-montres-v1';
+  /** @type {Array<{id:string,numero:number,modele:string,valeur:number,tickets:number,prix:number,source?:string,date:string}>} */
+  let data = [];
+  let sortKey = 'numero'; // 'numero' | 'date'
+  let q = '';
+  let filter = { minProb:0, maxPrice:null, minValue:0 };
+
+  // ===== Seed data (5 tirages tests) =====
+  function seed() {
+    // Tirages importés depuis Luxury Watch Supply — page 1 (sept. 2025)
+    // Source: Draw certificates page et certificats RandomDraws.
+    // Champs inconnus (valeur/prix/tickets) mis à 0 pour saisie ultérieure.
+    const list = [
+      {numero:699, modele:'GMT Trio', date:'2025-09-15', source:'https://www.randomdraws.co.uk/cert/sgcztw/'},
+      {numero:698, modele:'Hulk', date:'2025-09-12', source:'https://www.randomdraws.co.uk/cert/hfgkww/'},
+      {numero:697, modele:'Batman', date:'2025-09-11', source:'https://www.randomdraws.co.uk/cert/jqazmw/'},
+      {numero:696, modele:'Sub Date', date:'2025-09-10', source:'https://www.randomdraws.co.uk/cert/ehxgaw/'},
+      {numero:695, modele:'John Mayer Datona', date:'2025-09-08', source:'https://www.randomdraws.co.uk/cert/cyabgw/'},
+      {numero:694, modele:'Rolex GMT Sprite', date:'2025-09-06', source:'https://www.randomdraws.co.uk/cert/rghwsw/'},
+      {numero:693, modele:'Starbucks', date:'2025-09-05', source:'https://www.randomdraws.co.uk/cert/ntpbxw/'},
+      {numero:692, modele:'Low Ticket Panda', date:'2025-09-04', source:'https://www.randomdraws.co.uk/cert/nwhqxw/'},
+      {numero:691, modele:'Rolex Yacht-Master 40', date:'2025-09-03', source:'https://www.randomdraws.co.uk/cert/hzwmew/'},
+      {numero:690, modele:'Bruce Wayne', date:'2025-09-02', source:'https://www.randomdraws.co.uk/cert/qdtxaw/'},
+      {numero:689, modele:'Sub Trio', date:'2025-09-01', source:'https://www.randomdraws.co.uk/cert/ngayfw/'},
+      {numero:688, modele:'Pepsi', date:'2025-08-29', source:'https://www.randomdraws.co.uk/cert/mpbfzw/'},
+      {numero:687, modele:'Daytona Oysterflex Ghost', date:'2025-08-28', source:'https://www.randomdraws.co.uk/cert/rwachw/'},
+      {numero:686, modele:'Batman GMT', date:'2025-08-26', source:'https://www.randomdraws.co.uk/cert/srdycw/'},
+      // Spéciaux mensuels
+      {numero:99901, modele:'Monthly Comp – Bruce Wayne – August', date:'2025-08-26', source:'https://www.randomdraws.co.uk/cert/xnbhgw/'},
+      {numero:99902, modele:'Monthly Mini-draw 4 – August', date:'2025-08-26', source:'https://www.randomdraws.co.uk/cert/nfwykw/'},
+    ];
+    return list.map(x=> ({id:uid(), numero:x.numero, modele:x.modele, valeur:0, tickets:0, prix:0, source:x.source, date:x.date}));
+  }
+
+  // ===== Persistence =====
+  function load(){
+    try{ const raw = localStorage.getItem(LS_KEY); if(raw){ data = JSON.parse(raw); } else { data = seed(); save(); } }
+    catch{ data = seed(); save(); }
+  }
+  function save(){ localStorage.setItem(LS_KEY, JSON.stringify(data)); }
+  function reset(){ data = seed(); save(); render(); }
+
+  // ===== Modal & Form =====
+  const modal = document.getElementById('modal');
+  const form = document.getElementById('form');
+  const modalTitle = document.getElementById('modalTitle');
+  function openModal(editId=null){
+    modal.classList.remove('hidden');
+    document.body.style.overflow='hidden';
+    if(editId){
+      modalTitle.textContent='Modifier le tirage';
+      const it = data.find(x=>x.id===editId);
+      form.numero.value = it.numero;
+      form.modele.value = it.modele;
+      form.valeur.value = it.valeur;
+      form.tickets.value= it.tickets;
+      form.prix.value = it.prix;
+      form.source.value = it.source||'';
+      form.date.value = it.date;
+      form.id.value = it.id;
+    } else {
+      modalTitle.textContent='Ajouter un tirage';
+      form.reset();
+      form.id.value = '';
+    }
+  }
+  function closeModal(){ modal.classList.add('hidden'); document.body.style.overflow=''; }
+
+  // Validate numeric > 0 where needed
+  function validatePayload(p){
+    const errs=[];
+    if(!(+p.numero>=1)) errs.push('N° tirage invalide');
+    if(!p.modele) errs.push('Modèle requis');
+    if(!(+p.valeur>0)) errs.push('Valeur > 0 requise');
+    if(!(+p.tickets>=1)) errs.push('Tickets ≥ 1 requis');
+    if(!(+p.prix>0)) errs.push('Prix du ticket > 0 requis');
+    if(!p.date) errs.push('Date requise');
+    if(p.source && !/^https?:\/\//i.test(p.source)) errs.push('URL source invalide');
+    return errs;
+  }
+
+  form.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const payload = {
+      id: form.id.value || uid(),
+      numero: +form.numero.value,
+      modele: form.modele.value.trim(),
+      valeur: +form.valeur.value,
+      tickets:+form.tickets.value,
+      prix: +form.prix.value,
+      source: form.source.value.trim(),
+      date: form.date.value,
+    };
+    const errs = validatePayload(payload);
+    if(errs.length){ alert('Erreurs:\n- '+errs.join('\n- ')); return; }
+    const idx = data.findIndex(x=>x.id===payload.id);
+    if(idx>=0) data[idx]=payload; else data.push(payload);
+    save(); closeModal(); render();
+  });
+
+  document.getElementById('btnAdd').onclick = ()=> openModal();
+  document.getElementById('btnClose').onclick = closeModal;
+  document.getElementById('btnCancel').onclick = closeModal;
+  document.getElementById('btnReset').onclick = ()=>{ if(confirm('Réinitialiser les données de démonstration ?')) reset(); };
+
+  // ===== Rendering =====
+  const tbody = document.getElementById('rows');
+  function row(it){
+    const knownTickets = +it.tickets>0;
+    const s = knownTickets ? score100(it.tickets) : null;
+    const p = knownTickets ? +s.toFixed(2) : null;
+    const color = knownTickets ? colorFor(p) : '#9ca3af';
+    const badge = knownTickets ? (p>=1? 'bg-green-100 text-green-700' : (p>=0.2? 'bg-amber-100 text-amber-700':'bg-red-100 text-red-700')) : 'bg-slate-200 text-slate-700';
+    const valHTML = (+it.valeur>0) ? fmtGBP(it.valeur) : '—';
+    const prixHTML = (+it.prix>0) ? fmtGBP(it.prix) : '—';
+    const ticketsHTML = (+it.tickets>0) ? fmtInt(it.tickets) : '—';
+    const scoreHTML = knownTickets
+      ? `<div class="flex items-center gap-2"><div class="gauge" style="color:${color};--p:${p};"><span>${p.toFixed(2)}</span></div><span class="badge ${badge}">${p>=1?'≥ 1%':(p>=0.2?'0,2–1%':'< 0,2%')}</span></div>`
+      : `<span class="badge ${badge}">N/A</span>`;
+    return `<tr class="hover:bg-slate-50">\n      <td class="px-4 py-3 whitespace-nowrap">${fmtInt(it.numero)}</td>\n      <td class="px-4 py-3">${escapeHtml(it.modele)}</td>\n      <td class="px-4 py-3 whitespace-nowrap">${valHTML}</td>\n      <td class="px-4 py-3 whitespace-nowrap">${ticketsHTML}</td>\n      <td class="px-4 py-3 whitespace-nowrap">${prixHTML}</td>\n      <td class="px-4 py-3 whitespace-nowrap">${scoreHTML}</td>\n      <td class="px-4 py-3 max-w-[220px] truncate">${it.source?`<a class=\"text-slate-700 underline decoration-slate-300 hover:decoration-slate-700\" href=\"${escapeAttr(it.source)}\" target=\"_blank\" rel=\"noopener\">lien</a>`:'—'}</td>\n      <td class="px-4 py-3 whitespace-nowrap">${fmtDate(it.date)}</td>\n      <td class="px-4 py-3 whitespace-nowrap text-right">\n        <button class="ring-focus rounded-lg border border-slate-300 px-2 py-1 text-xs" data-edit="${it.id}">Éditer</button>\n        <button class="ring-focus rounded-lg border border-red-300 text-red-700 px-2 py-1 text-xs" data-del="${it.id}">Supprimer</button>\n      </td>\n    </tr>`;
+  }
+
+  function escapeHtml(s){ s=String(s); return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+  function escapeAttr(s){ s=String(s); return s.replace(/"/g,'&quot;'); }
+
+  function applyFilters(items){
+    return items.filter(it=>{
+      const s = score100(it.tickets);
+      if(filter.minProb && s < filter.minProb) return false;
+      if(filter.maxPrice!=null && it.prix > filter.maxPrice) return false;
+      if(filter.minValue && it.valeur < filter.minValue) return false;
+      if(q){
+        const t = (it.numero+" "+it.modele+" "+(it.source||"")).toLowerCase();
+        if(!t.includes(q)) return false;
+      }
+      return true;
+    });
+  }
+
+  function render(){
+    // sort: default by numero asc; if sortKey==date then by date asc; date latest last
+    let items = [...data];
+    items.sort(sortKey==='numero'?byNumero:byDate);
+    items = applyFilters(items);
+    tbody.innerHTML = items.map(row).join('');
+    // bind actions
+    tbody.querySelectorAll('[data-edit]').forEach(btn=> btn.addEventListener('click', ()=> openModal(btn.getAttribute('data-edit'))));
+    tbody.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-del');
+      if(confirm('Supprimer ce tirage ?')){ data = data.filter(x=>x.id!==id); save(); render(); }
+    }));
+    // update sort indicators
+    document.querySelectorAll('th[data-sort]').forEach(th=>{
+      th.classList.remove('text-slate-900');
+      if(th.dataset.sort===sortKey) th.classList.add('text-slate-900');
+    });
+  }
+
+  // ===== Sorting & Filters events =====
+  document.querySelectorAll('th[data-sort]').forEach(th=> th.addEventListener('click', ()=>{ sortKey = th.dataset.sort; render(); }));
+  document.getElementById('q').addEventListener('input', (e)=>{ q = e.target.value.trim().toLowerCase(); render(); });
+  document.getElementById('minProb').addEventListener('input', (e)=>{ filter.minProb = +e.target.value||0; render(); });
+  document.getElementById('maxPrice').addEventListener('input', (e)=>{ const v=e.target.value; filter.maxPrice = v===''? null : +v; render(); });
+  document.getElementById('minValue').addEventListener('input', (e)=>{ filter.minValue = +e.target.value||0; render(); });
+
+  // ===== Tests =====
+  function addTestLine(ok, name, detail=''){
+    const li = document.createElement('li');
+    li.textContent = (ok? '✓ ' : '✗ ') + name + (detail? ' — '+detail : '');
+    li.className = ok? 'text-green-700' : 'text-red-700';
+    document.getElementById('testList').appendChild(li);
+  }
+  function approxEqual(a,b,eps=1e-9){ return Math.abs(a-b) <= eps; }
+  function runTests(){
+    try{
+      addTestLine(approxEqual(score100(100),1), 'score100(100) == 1');
+      addTestLine(approxEqual(score100(500),0.2), 'score100(500) == 0.2');
+      addTestLine(approxEqual(score100(1000),0.1), 'score100(1000) == 0.1');
+      addTestLine(approxEqual(score100(333),0.3), 'score100(333) ≈ 0.30');
+      addTestLine(prob(0)===0, 'prob(0) == 0');
+      addTestLine(colorFor(1)==='var(--ok)', 'colorFor(1) -> ok');
+      addTestLine(colorFor(0.5)==='var(--warn)', 'colorFor(0.5) -> warn');
+      addTestLine(colorFor(0.1)==='var(--bad)', 'colorFor(0.1) -> bad');
+      addTestLine(escapeHtml('<script>')==='&lt;script&gt;', 'escapeHtml works');
+      addTestLine(escapeAttr('"a"')==='&quot;a&quot;', 'escapeAttr works');
+      const sorted = [{date:'2025-01-02'},{date:'2025-01-01'}].sort(byDate);
+      addTestLine(sorted[0].date==='2025-01-01' && sorted[1].date==='2025-01-02', 'byDate ascending, récent en dernier');
+      // Extra tests
+      addTestLine(!fmtGBP(35.99).includes(',') && !fmtGBP(35.99).includes('.'), 'fmtGBP supprime les décimales');
+      const htmlNA = row({id:'t', numero:1, modele:'X', valeur:0, tickets:0, prix:0, source:'', date:'2025-01-01'});
+      addTestLine(htmlNA.includes('N/A'), 'row: N/A quand tickets=0');
+      console.info('Tests exécutés');
+    }catch(e){
+      addTestLine(false,'Exception pendant les tests', e.message||String(e));
+    }
+  }
+
+  // ===== Init =====
+  load();
+  render();
+  runTests();
+  </script>
+</body>
+</html>
