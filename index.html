@@ -34,6 +34,21 @@
   <!-- Controls -->
   <section class="max-w-6xl mx-auto px-4 mt-6">
     <div class="text-sm text-slate-600">Astuce: la <span class="font-semibold">note /100</span> = probabilité de gain pour 1 ticket × 100. Vert ≥ 1%, Orange 0,2–1%, Rouge &lt; 0,2%.</div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <label class="block">
+        <span class="block text-sm font-medium mb-1">Probabilité min (%)</span>
+        <input id="minProb" type="number" step="0.01" min="0" value="0" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+      </label>
+      <label class="block">
+        <span class="block text-sm font-medium mb-1">Prix du ticket max (GBP)</span>
+        <input id="maxPrice" type="number" step="1" min="0" placeholder="illimité" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+      </label>
+      <label class="block">
+        <span class="block text-sm font-medium mb-1">Valeur montre min (GBP)</span>
+        <input id="minValue" type="number" step="100" min="0" value="0" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
+      </label>
+    </div>
+    <div class="mt-3 text-sm text-slate-600">Astuce: la <span class="font-semibold">note /100</span> = probabilité de gain pour 1 ticket × 100. Vert ≥ 1%, Orange 0,2–1%, Rouge &lt; 0,2%.</div>
   </section>
 
   <!-- Table -->
@@ -125,6 +140,7 @@
   /** @type {Array<{id:string,numero:number,modele:string,valeur:number,tickets:number,prix:number,source?:string,date:string}>} */
   let data = [];
   let sortKey = 'numero'; // 'numero' | 'date'
+  let filter = { minProb:0, maxPrice:null, minValue:0 };
 
   // ===== Seed data (5 tirages tests) =====
   function seed() {
@@ -244,6 +260,16 @@
   function escapeHtml(s){ s=String(s); return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
   function escapeAttr(s){ s=String(s); return s.replace(/"/g,'&quot;'); }
 
+  function applyFilters(items){
+    return items.filter(it=>{
+      const s = score100(it.tickets);
+      if(filter.minProb && s < filter.minProb) return false;
+      if(filter.maxPrice!=null && it.prix > filter.maxPrice) return false;
+      if(filter.minValue && it.valeur < filter.minValue) return false;
+      return true;
+    });
+  }
+
   function render(){
     // sort: default by numero asc; if sortKey==date then by date asc; date latest last
     let items = [...data];
@@ -264,6 +290,9 @@
 
   // ===== Sorting & Filters events =====
   document.querySelectorAll('th[data-sort]').forEach(th=> th.addEventListener('click', ()=>{ sortKey = th.dataset.sort; render(); }));
+  document.getElementById('minProb').addEventListener('input', (e)=>{ filter.minProb = +e.target.value||0; render(); });
+  document.getElementById('maxPrice').addEventListener('input', (e)=>{ const v=e.target.value; filter.maxPrice = v===''? null : +v; render(); });
+  document.getElementById('minValue').addEventListener('input', (e)=>{ filter.minValue = +e.target.value||0; render(); });
   // ===== Init =====
   load();
   render();
