@@ -33,25 +33,7 @@
 
   <!-- Controls -->
   <section class="max-w-6xl mx-auto px-4 mt-6">
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-      <label class="block">
-        <span class="block text-sm font-medium mb-1">Recherche</span>
-        <input id="q" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2" placeholder="modèle, n° tirage, source" />
-      </label>
-      <label class="block">
-        <span class="block text-sm font-medium mb-1">Probabilité min (%)</span>
-        <input id="minProb" type="number" step="0.01" min="0" value="0" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
-      </label>
-      <label class="block">
-        <span class="block text-sm font-medium mb-1">Prix du ticket max (GBP)</span>
-        <input id="maxPrice" type="number" step="1" min="0" placeholder="illimité" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
-      </label>
-      <label class="block">
-        <span class="block text-sm font-medium mb-1">Valeur montre min (GBP)</span>
-        <input id="minValue" type="number" step="100" min="0" value="0" class="ring-focus w-full rounded-xl border border-slate-300 bg-white px-3 py-2"/>
-      </label>
-    </div>
-    <div class="mt-3 text-sm text-slate-600">Astuce: la <span class="font-semibold">note /100</span> = probabilité de gain pour 1 ticket × 100. Vert ≥ 1%, Orange 0,2–1%, Rouge &lt; 0,2%.</div>
+    <div class="text-sm text-slate-600">Astuce: la <span class="font-semibold">note /100</span> = probabilité de gain pour 1 ticket × 100. Vert ≥ 1%, Orange 0,2–1%, Rouge &lt; 0,2%.</div>
   </section>
 
   <!-- Table -->
@@ -125,14 +107,6 @@
     Données stockées localement. Probabilité calculée pour <span class="font-semibold">1 ticket</span>.
   </footer>
 
-  <!-- Optional: panneau de tests -->
-  <section class="max-w-6xl mx-auto px-4 pb-8">
-    <details id="tests" class="mt-4 bg-white border border-slate-200 rounded-2xl p-4 text-sm">
-      <summary class="cursor-pointer select-none font-semibold">Tests unitaires intégrés</summary>
-      <ul id="testList" class="mt-2 list-disc pl-6 text-slate-700"></ul>
-    </details>
-  </section>
-
   <script>
   'use strict';
   // ===== Utilities =====
@@ -151,8 +125,6 @@
   /** @type {Array<{id:string,numero:number,modele:string,valeur:number,tickets:number,prix:number,source?:string,date:string}>} */
   let data = [];
   let sortKey = 'numero'; // 'numero' | 'date'
-  let q = '';
-  let filter = { minProb:0, maxPrice:null, minValue:0 };
 
   // ===== Seed data (5 tirages tests) =====
   function seed() {
@@ -272,25 +244,10 @@
   function escapeHtml(s){ s=String(s); return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
   function escapeAttr(s){ s=String(s); return s.replace(/"/g,'&quot;'); }
 
-  function applyFilters(items){
-    return items.filter(it=>{
-      const s = score100(it.tickets);
-      if(filter.minProb && s < filter.minProb) return false;
-      if(filter.maxPrice!=null && it.prix > filter.maxPrice) return false;
-      if(filter.minValue && it.valeur < filter.minValue) return false;
-      if(q){
-        const t = (it.numero+" "+it.modele+" "+(it.source||"")).toLowerCase();
-        if(!t.includes(q)) return false;
-      }
-      return true;
-    });
-  }
-
   function render(){
     // sort: default by numero asc; if sortKey==date then by date asc; date latest last
     let items = [...data];
     items.sort(sortKey==='numero'?byNumero:byDate);
-    items = applyFilters(items);
     tbody.innerHTML = items.map(row).join('');
     // bind actions
     tbody.querySelectorAll('[data-edit]').forEach(btn=> btn.addEventListener('click', ()=> openModal(btn.getAttribute('data-edit'))));
@@ -307,47 +264,9 @@
 
   // ===== Sorting & Filters events =====
   document.querySelectorAll('th[data-sort]').forEach(th=> th.addEventListener('click', ()=>{ sortKey = th.dataset.sort; render(); }));
-  document.getElementById('q').addEventListener('input', (e)=>{ q = e.target.value.trim().toLowerCase(); render(); });
-  document.getElementById('minProb').addEventListener('input', (e)=>{ filter.minProb = +e.target.value||0; render(); });
-  document.getElementById('maxPrice').addEventListener('input', (e)=>{ const v=e.target.value; filter.maxPrice = v===''? null : +v; render(); });
-  document.getElementById('minValue').addEventListener('input', (e)=>{ filter.minValue = +e.target.value||0; render(); });
-
-  // ===== Tests =====
-  function addTestLine(ok, name, detail=''){
-    const li = document.createElement('li');
-    li.textContent = (ok? '✓ ' : '✗ ') + name + (detail? ' — '+detail : '');
-    li.className = ok? 'text-green-700' : 'text-red-700';
-    document.getElementById('testList').appendChild(li);
-  }
-  function approxEqual(a,b,eps=1e-9){ return Math.abs(a-b) <= eps; }
-  function runTests(){
-    try{
-      addTestLine(approxEqual(score100(100),1), 'score100(100) == 1');
-      addTestLine(approxEqual(score100(500),0.2), 'score100(500) == 0.2');
-      addTestLine(approxEqual(score100(1000),0.1), 'score100(1000) == 0.1');
-      addTestLine(approxEqual(score100(333),0.3), 'score100(333) ≈ 0.30');
-      addTestLine(prob(0)===0, 'prob(0) == 0');
-      addTestLine(colorFor(1)==='var(--ok)', 'colorFor(1) -> ok');
-      addTestLine(colorFor(0.5)==='var(--warn)', 'colorFor(0.5) -> warn');
-      addTestLine(colorFor(0.1)==='var(--bad)', 'colorFor(0.1) -> bad');
-      addTestLine(escapeHtml('<script>')==='&lt;script&gt;', 'escapeHtml works');
-      addTestLine(escapeAttr('"a"')==='&quot;a&quot;', 'escapeAttr works');
-      const sorted = [{date:'2025-01-02'},{date:'2025-01-01'}].sort(byDate);
-      addTestLine(sorted[0].date==='2025-01-01' && sorted[1].date==='2025-01-02', 'byDate ascending, récent en dernier');
-      // Extra tests
-      addTestLine(!fmtGBP(35.99).includes(',') && !fmtGBP(35.99).includes('.'), 'fmtGBP supprime les décimales');
-      const htmlNA = row({id:'t', numero:1, modele:'X', valeur:0, tickets:0, prix:0, source:'', date:'2025-01-01'});
-      addTestLine(htmlNA.includes('N/A'), 'row: N/A quand tickets=0');
-      console.info('Tests exécutés');
-    }catch(e){
-      addTestLine(false,'Exception pendant les tests', e.message||String(e));
-    }
-  }
-
   // ===== Init =====
   load();
   render();
-  runTests();
   </script>
 </body>
 </html>
