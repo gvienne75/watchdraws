@@ -33,6 +33,7 @@
 
   <!-- Controls -->
   <section class="max-w-6xl mx-auto px-4 mt-6">
+    <div class="text-sm text-slate-600">Astuce: la <span class="font-semibold">note /100</span> = probabilité de gain pour 1 ticket × 100. Vert ≥ 1%, Orange 0,2–1%, Rouge &lt; 0,2%.</div>
     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
       <label class="block">
         <span class="block text-sm font-medium mb-1">Probabilité min (%)</span>
@@ -273,7 +274,6 @@
     // sort: default by numero asc; if sortKey==date then by date asc; date latest last
     let items = [...data];
     items.sort(sortKey==='numero'?byNumero:byDate);
-    items = applyFilters(items);
     tbody.innerHTML = items.map(row).join('');
     // bind actions
     tbody.querySelectorAll('[data-edit]').forEach(btn=> btn.addEventListener('click', ()=> openModal(btn.getAttribute('data-edit'))));
